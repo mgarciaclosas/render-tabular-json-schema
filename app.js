@@ -143,8 +143,10 @@ class SchemaProcessor {
 
                 // If this property is a nested array of objects, expand its item
                 // properties as additional rows grouped under a sub-category.
+                // When forceCategory=true (multi-schema mode) keep the parent category
+                // so array items don't create a separate section in the filter dropdown.
                 if (propSchema.type === 'array' && propSchema.items?.properties) {
-                    const arrayCategory = `${name} — array items`;
+                    const arrayCategory = forceCategory ? category : `${name} — array items`;
                     result.push(...this.extractProperties(propSchema.items, arrayCategory, forceCategory));
                 }
             }
@@ -1610,13 +1612,13 @@ window.selectSection = function(cat, checked) {
 
 function updateSelectionUI() {
     const n = window.selectedVars?.size || 0;
-    const statusEl  = document.getElementById('selectionStatus');
     const exportBtn = document.getElementById('exportSelectedBtn');
-    if (statusEl) {
-        statusEl.style.display = n > 0 ? 'block' : 'none';
-        statusEl.textContent   = n > 0 ? `${n} variable${n === 1 ? '' : 's'} selected` : '';
+    if (exportBtn) {
+        exportBtn.disabled     = n === 0;
+        exportBtn.textContent  = n > 0
+            ? `Export Selected (${n}) to Excel`
+            : 'Export Selected to Excel';
     }
-    if (exportBtn) exportBtn.style.display = n > 0 ? 'inline-block' : 'none';
 }
 
 window.exportSelected = async function() {
@@ -1828,11 +1830,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Render table with default columns
             tableOutput.innerHTML = renderer.render(currentData);
             exportBtn.style.display = 'inline-block';
+            document.getElementById('exportSelectedBtn').style.display = 'inline-block';
+            document.getElementById('copyLinkBtn').style.display =
+                pendingURLSchemas.length > 0 ? 'inline-block' : 'none';
 
         } catch (error) {
             errorMessage.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
             tableOutput.innerHTML = '';
             exportBtn.style.display = 'none';
+            document.getElementById('exportSelectedBtn').style.display = 'none';
+            document.getElementById('copyLinkBtn').style.display = 'none';
             columnSelectorContainer.style.display = 'none';
         }
     });
@@ -1885,8 +1892,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset variable selection
         window.selectedVars = new Set();
         document.getElementById('exportSelectedBtn').style.display = 'none';
-        const ss = document.getElementById('selectionStatus');
-        if (ss) { ss.style.display = 'none'; ss.textContent = ''; }
+        document.getElementById('copyLinkBtn').style.display = 'none';
 
         // Hide buttons
         document.getElementById('processBtn').style.display = 'none';

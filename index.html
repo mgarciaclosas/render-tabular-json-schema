@@ -7,7 +7,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <link rel="stylesheet" href="styles.css?v=5">
+    <link rel="stylesheet" href="styles.css?v=7">
     <style>
         .info-grid {
             display: grid;
@@ -116,11 +116,11 @@
 
         /* Copy link button */
         .btn-copy-link {
-            padding: 10px 20px; background: #8e44ad; color: white;
+            padding: 10px 20px; background: #16a085; color: white;
             border: none; border-radius: 6px; cursor: pointer;
             font-weight: 500; transition: all 0.3s; font-size: 14px;
         }
-        .btn-copy-link:hover { background: #7d3c98; }
+        .btn-copy-link:hover { background: #138d75; }
 
         /* URL input */
         .url-input-wrapper {
@@ -181,12 +181,12 @@
             <div class="info-card">
                 <h2>How to use</h2>
                 <ol class="steps">
-                    <li><strong>Upload files:</strong> click <strong>Choose JSON Schema File(s)</strong> — <em>or</em> paste a GitHub or raw JSON URL and click <strong>Add URL</strong>. Paste multiple URLs at once (one per line) to add them all. Drag ⠿ to reorder</li>
-                    <li>Click <strong>Generate Table</strong> to render the data dictionary</li>
-                    <li>Use the <strong>category dropdown</strong> to focus on one schema and <strong>Collapse / Expand all</strong> to fold sections. Use the <strong>search box</strong> to find variables</li>
-                    <li>Tick checkboxes to select variables, then click <strong>Export Selected to Excel</strong> — or <strong>Export All to Excel</strong> for the full dictionary</li>
-                    <li>Use the <strong>column selector</strong> to show, hide, or reorder columns</li>
-                    <li>If schemas were loaded from URLs, click <strong>Copy shareable link</strong> to share a link that opens the same dictionary automatically</li>
+                    <li><span><strong>Upload files:</strong> click <strong>Choose JSON Schema File(s)</strong> — <em>or</em> paste a GitHub or raw JSON URL and click <strong>Add URL</strong>. Paste multiple URLs at once (one per line) to add them all. Drag ⠿ to reorder</span></li>
+                    <li><span>Click <strong>Generate Table</strong> to render the data dictionary</span></li>
+                    <li><span>Use the <strong>category dropdown</strong> to focus on one schema and <strong>Collapse / Expand all</strong> to fold sections. Use the <strong>search box</strong> to find variables</span></li>
+                    <li><span>Tick checkboxes to select variables, then click <strong>Export Selected to Excel</strong> — or <strong>Export All to Excel</strong> for the full dictionary</span></li>
+                    <li><span>Use the <strong>column selector</strong> to show, hide, or reorder columns</span></li>
+                    <li><span>If schemas were loaded from URLs, click <strong>Copy shareable link</strong> to share a link that opens the same dictionary automatically</span></li>
                 </ol>
             </div>
 
@@ -229,10 +229,9 @@
                 <button id="processBtn" class="btn btn-primary" style="display:none;">Generate Table</button>
                 <button id="clearBtn" class="btn btn-danger" style="display:none;">Clear</button>
                 <button id="exportBtn" class="btn btn-secondary" style="display:none;">Export All to Excel</button>
-                <button id="exportSelectedBtn" class="btn-export-selected" style="display:none;">Export Selected to Excel</button>
-                <button id="copyLinkBtn" class="btn-copy-link" style="display:none;" title="Only available when schemas are loaded from URLs">Copy shareable link</button>
+                <button id="exportSelectedBtn" class="btn-export-selected" style="display:none;" disabled>Export Selected to Excel</button>
+                <button id="copyLinkBtn" class="btn-copy-link" style="display:none;">Copy shareable link</button>
             </div>
-            <div id="selectionStatus" style="font-size:13px;color:#8e44ad;font-weight:600;margin-top:8px;display:none;"></div>
             <div id="errorMessage"></div>
         </div>
 
@@ -246,6 +245,6 @@
     <!-- FileSaver.js for browser file download -->
     <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=7"></script>
 </body>
 </html>
