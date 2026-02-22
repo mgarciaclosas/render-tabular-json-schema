@@ -31,6 +31,7 @@ class SchemaProcessor {
         this.keywordUsage.clear();
 
         // Load all schemas
+        let objectSchemaCandidate = null;
         for (const file of files) {
             const text = await file.text();
             const schema = JSON.parse(text);
@@ -42,15 +43,18 @@ class SchemaProcessor {
                 this.schemas.set(file.name, schema);
             }
 
-            // Identify main schema (has type: array)
+            // Prefer a type:array dataset-level schema as the main schema.
+            // Fall back to the first type:object schema found.
             if (schema.type === 'array' && schema.items) {
                 this.mainSchema = schema;
+            } else if (!objectSchemaCandidate && (schema.type === 'object' || schema.properties)) {
+                objectSchemaCandidate = schema;
             }
         }
 
-        // If no main schema found, try to use single schema
-        if (!this.mainSchema && this.schemas.size === 1) {
-            this.mainSchema = this.schemas.values().next().value;
+        // If no type:array schema found, use the best type:object candidate
+        if (!this.mainSchema) {
+            this.mainSchema = objectSchemaCandidate || this.schemas.values().next().value || null;
         }
 
         // Collect keyword usage after processing all schemas
@@ -100,6 +104,13 @@ class SchemaProcessor {
                     schema: propSchema,
                     required: schema.required?.includes(name) || false
                 });
+
+                // If this property is a nested array of objects, expand its item
+                // properties as additional rows grouped under a sub-category.
+                if (propSchema.type === 'array' && propSchema.items?.properties) {
+                    const arrayCategory = `${name} — array items`;
+                    result.push(...this.extractProperties(propSchema.items, arrayCategory));
+                }
             }
         }
 
@@ -146,18 +157,26 @@ class SchemaProcessor {
     getTableData() {
         if (!this.mainSchema) return null;
 
-        let itemSchema = this.mainSchema.items;
-        if (itemSchema?.$ref) {
-            itemSchema = this.resolveRef(itemSchema.$ref, this.mainSchema);
+        // If the main schema is a dataset-level array schema, resolve its item schema.
+        // Otherwise (type:object or domain schemas uploaded directly), use it as-is.
+        let rowSchema = this.mainSchema;
+        if (this.mainSchema.type === 'array' && this.mainSchema.items) {
+            let itemSchema = this.mainSchema.items;
+            if (itemSchema?.$ref) {
+                const resolved = this.resolveRef(itemSchema.$ref, this.mainSchema);
+                if (resolved) rowSchema = resolved;
+            } else {
+                rowSchema = itemSchema;
+            }
         }
 
-        if (!itemSchema) return null;
+        if (!rowSchema) return null;
 
-        const properties = this.extractProperties(itemSchema);
+        const properties = this.extractProperties(rowSchema);
 
         return {
-            title: this.mainSchema.title || 'Dataset Schema',
-            description: this.mainSchema.description || '',
+            title: this.mainSchema.title || rowSchema.title || 'Dataset Schema',
+            description: this.mainSchema.description || rowSchema.description || '',
             properties: properties
         };
     }
