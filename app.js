@@ -15,7 +15,8 @@ class SchemaProcessor {
     ]);
 
     constructor() {
-        this.schemas = new Map();
+        this.schemas = new Map();      // keyed by $id or filename, for $ref resolution
+        this.schemaList = [];          // insertion-ordered list for table output
         this.mainSchema = null;
         this.keywordUsage = new Map();
     }
@@ -49,6 +50,7 @@ class SchemaProcessor {
      */
     async processFiles(files, extraSchemas = []) {
         this.schemas.clear();
+        this.schemaList = [];
         this.mainSchema = null;
         this.keywordUsage.clear();
 
@@ -60,6 +62,7 @@ class SchemaProcessor {
             } else {
                 this.schemas.set(name, schema);
             }
+            this.schemaList.push(schema);
             // Prefer a type:array dataset-level schema as the main schema.
             // Fall back to the first type:object schema found.
             if (schema.type === 'array' && schema.items) {
@@ -201,7 +204,8 @@ class SchemaProcessor {
 
         // Case 2: multiple type:object schemas uploaded directly — combine all
         // into a single table, one category per schema (no wrapper files needed).
-        const objectSchemas = Array.from(this.schemas.values()).filter(
+        // Use schemaList (not schemas.values()) to preserve the exact insertion order.
+        const objectSchemas = this.schemaList.filter(
             s => s.type === 'object' || s.properties
         );
         if (objectSchemas.length > 1) {
@@ -1738,6 +1742,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Clear processor data
         processor.schemas.clear();
+        processor.schemaList = [];
         processor.mainSchema = null;
         processor.keywordUsage.clear();
 
