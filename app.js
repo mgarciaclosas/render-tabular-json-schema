@@ -1528,12 +1528,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUrlList() {
         const urlList = document.getElementById('urlList');
         if (pendingURLSchemas.length === 0) { urlList.innerHTML = ''; return; }
+        const n = pendingURLSchemas.length;
         urlList.innerHTML = pendingURLSchemas.map((s, i) =>
             `<div class="url-item">
+                <div class="url-item-arrows">
+                    <button class="url-item-arrow" data-idx="${i}" data-dir="-1" title="Move up"   ${i === 0     ? 'disabled' : ''}>▲</button>
+                    <button class="url-item-arrow" data-idx="${i}" data-dir="1"  title="Move down" ${i === n - 1 ? 'disabled' : ''}>▼</button>
+                </div>
                 <span class="url-item-name" title="${s.url}">${s.name}</span>
                 <button class="url-item-remove" data-idx="${i}" title="Remove">×</button>
             </div>`
         ).join('');
+        urlList.querySelectorAll('.url-item-arrow').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = +btn.dataset.idx;
+                const newIdx = idx + +btn.dataset.dir;
+                if (newIdx < 0 || newIdx >= pendingURLSchemas.length) return;
+                [pendingURLSchemas[idx], pendingURLSchemas[newIdx]] =
+                    [pendingURLSchemas[newIdx], pendingURLSchemas[idx]];
+                renderUrlList();
+            });
+        });
         urlList.querySelectorAll('.url-item-remove').forEach(btn => {
             btn.addEventListener('click', () => {
                 pendingURLSchemas.splice(+btn.dataset.idx, 1);
