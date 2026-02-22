@@ -3,15 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JSON Schema to Data Dictionary</title>
+    <title>JSON Schema → Data Dictionary</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .info-card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px 28px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+        .info-card h2 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .steps { list-style: none; counter-reset: steps; }
+        .steps li {
+            counter-increment: steps;
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 8px 0; font-size: 14px; color: #495057;
+            border-bottom: 1px solid #f1f3f5;
+        }
+        .steps li:last-child { border-bottom: none; }
+        .steps li::before {
+            content: counter(steps);
+            display: flex; align-items: center; justify-content: center;
+            min-width: 24px; height: 24px;
+            background: #4a69bd; color: white;
+            border-radius: 50%; font-size: 12px; font-weight: 700;
+            flex-shrink: 0; margin-top: 1px;
+        }
+        .schema-types { display: flex; flex-direction: column; gap: 10px; }
+        .schema-type {
+            background: #f8f9fa; border-radius: 6px;
+            padding: 10px 14px; font-size: 13px;
+        }
+        .schema-type strong { display: block; color: #2c3e50; margin-bottom: 3px; }
+        .schema-type span { color: #718096; }
+        .schema-type .tag {
+            display: inline-block; padding: 1px 7px;
+            border-radius: 4px; font-size: 11px; font-weight: 600;
+            margin-right: 6px; vertical-align: middle;
+        }
+        .tag-single { background: #e8f8f0; color: #1e8449; }
+        .tag-multi  { background: #eaf2ff; color: #1a5276; }
+        .features { list-style: none; }
+        .features li {
+            padding: 7px 0; font-size: 14px; color: #495057;
+            border-bottom: 1px solid #f1f3f5;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .features li:last-child { border-bottom: none; }
+        .features li::before { content: "✓"; color: #27ae60; font-weight: 700; }
+        @media (max-width: 700px) { .info-grid { grid-template-columns: 1fr; } }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>JSON Schema → Data Dictionary Converter</h1>
-            <p class="subtitle">Transform JSON Schema into familiar tabular data dictionary format</p>
+            <h1>JSON Schema → Data Dictionary</h1>
+            <p class="subtitle">Upload one or more JSON Schema files to generate a searchable, exportable data dictionary table. All processing happens locally in your browser — no data is uploaded anywhere.</p>
         </header>
+
+        <div class="info-grid">
+
+            <!-- How to use -->
+            <div class="info-card">
+                <h2>How to use</h2>
+                <ol class="steps">
+                    <li>Click <strong>Choose JSON Schema File(s)</strong> and select one or more <code>.json</code> schema files</li>
+                    <li>Click <strong>Generate Table</strong> to render the data dictionary</li>
+                    <li>Use the <strong>column selector</strong> to show, hide, or reorder columns</li>
+                    <li>Use the <strong>search box</strong> to filter variables by name or description</li>
+                    <li>Click <strong>Export to Excel</strong> to download the full dictionary as <code>.xlsx</code></li>
+                </ol>
+            </div>
+
+            <!-- Supported schema types -->
+            <div class="info-card">
+                <h2>Supported schema structures</h2>
+                <div class="schema-types">
+                    <div class="schema-type">
+                        <strong><span class="tag tag-single">Single file</span> Domain schema (<code>type: object</code>)</strong>
+                        <span>Upload one schema file directly — e.g. <code>Pregnancies.json</code>. No wrapper needed.</span>
+                    </div>
+                    <div class="schema-type">
+                        <strong><span class="tag tag-multi">Multi-file</span> Multiple domain schemas</strong>
+                        <span>Upload several <code>type:object</code> schemas together — all variables are combined into one table, with each schema shown as a separate category section.</span>
+                    </div>
+                    <div class="schema-type">
+                        <strong><span class="tag tag-multi">Multi-file</span> Dataset + row schema (<code>allOf</code> / <code>$ref</code>)</strong>
+                        <span>Upload a dataset-level schema (<code>type: array</code>) with its row schema (and any referenced domain schemas). <code>$ref</code> links resolve automatically by <code>$id</code> or filename.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features -->
+            <div class="info-card">
+                <h2>Features</h2>
+                <ul class="features">
+                    <li>Nested array fields (e.g. repeated measures) are automatically expanded as sub-rows</li>
+                    <li>Categorical variables show all valid values and descriptions on click</li>
+                    <li>Constraints (min/max, length, pattern, required) consolidated into one column</li>
+                    <li>Columns can be shown, hidden, and reordered via drag-and-drop</li>
+                    <li>Full-text search across all variable names and descriptions</li>
+                    <li>Export to formatted Excel spreadsheet with frozen headers</li>
+                </ul>
+            </div>
+
+            <!-- Schema tips -->
+            <div class="info-card">
+                <h2>Schema tips</h2>
+                <ul class="features">
+                    <li>Add a <code>description</code> to each property for richer documentation</li>
+                    <li>Use <code>enum</code> + <code>enumDescriptions</code> to document valid coded values</li>
+                    <li>Use <code>type: array</code> with <code>items.properties</code> for repeated measures — sub-fields will be expanded automatically</li>
+                    <li>Set <code>title</code> on each referenced sub-schema to label category sections in the table</li>
+                    <li>Use <code>$id</code> on every schema so cross-file <code>$ref</code> links resolve correctly when uploading multiple files</li>
+                </ul>
+            </div>
+
+        </div>
 
         <div class="upload-section">
             <div class="file-input-wrapper">

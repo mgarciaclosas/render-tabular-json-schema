@@ -157,27 +157,45 @@ class SchemaProcessor {
     getTableData() {
         if (!this.mainSchema) return null;
 
-        // If the main schema is a dataset-level array schema, resolve its item schema.
-        // Otherwise (type:object or domain schemas uploaded directly), use it as-is.
-        let rowSchema = this.mainSchema;
+        // Case 1: dataset-level array schema — resolve its item/row schema and
+        // use the existing allOf/$ref resolution path.
         if (this.mainSchema.type === 'array' && this.mainSchema.items) {
-            let itemSchema = this.mainSchema.items;
-            if (itemSchema?.$ref) {
-                const resolved = this.resolveRef(itemSchema.$ref, this.mainSchema);
+            let rowSchema = this.mainSchema.items;
+            if (rowSchema?.$ref) {
+                const resolved = this.resolveRef(rowSchema.$ref, this.mainSchema);
                 if (resolved) rowSchema = resolved;
-            } else {
-                rowSchema = itemSchema;
             }
+            if (!rowSchema) return null;
+            return {
+                title: this.mainSchema.title || rowSchema.title || 'Dataset Schema',
+                description: this.mainSchema.description || rowSchema.description || '',
+                properties: this.extractProperties(rowSchema)
+            };
         }
 
-        if (!rowSchema) return null;
+        // Case 2: multiple type:object schemas uploaded directly — combine all
+        // into a single table, one category per schema (no wrapper files needed).
+        const objectSchemas = Array.from(this.schemas.values()).filter(
+            s => s.type === 'object' || s.properties
+        );
+        if (objectSchemas.length > 1) {
+            const allProperties = [];
+            for (const schema of objectSchemas) {
+                allProperties.push(...this.extractProperties(schema, schema.title || null));
+            }
+            const titles = objectSchemas.map(s => s.title).filter(Boolean).join(', ');
+            return {
+                title: 'Combined Data Dictionary',
+                description: titles ? `Sections: ${titles}` : `Combined from ${objectSchemas.length} schema files`,
+                properties: allProperties
+            };
+        }
 
-        const properties = this.extractProperties(rowSchema);
-
+        // Case 3: single type:object schema.
         return {
-            title: this.mainSchema.title || rowSchema.title || 'Dataset Schema',
-            description: this.mainSchema.description || rowSchema.description || '',
-            properties: properties
+            title: this.mainSchema.title || 'Dataset Schema',
+            description: this.mainSchema.description || '',
+            properties: this.extractProperties(this.mainSchema)
         };
     }
 }
