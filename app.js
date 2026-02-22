@@ -1085,7 +1085,8 @@ class TableRenderer {
 
         // Collect unique categories for filter dropdown
         const categories = hasCategories
-            ? [...new Set(data.properties.map(p => p.category).filter(Boolean))]
+            ? [...new Set(data.properties.map(p => p.category)
+                .filter(c => c && !c.endsWith('— array items')))]
             : [];
 
         let html = `<div class="table-container">
