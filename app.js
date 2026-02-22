@@ -1957,12 +1957,12 @@ document.addEventListener('DOMContentLoaded', () => {
         window.exportSelected();
     });
 
-    // Copy shareable link button
+    // Copy shareable link button — compress URLs with LZ-string to keep the link short
     document.getElementById('copyLinkBtn').addEventListener('click', () => {
         if (pendingURLSchemas.length === 0) return;
-        const params = new URLSearchParams();
-        pendingURLSchemas.forEach(s => params.append('s', s.url));
-        const shareURL = `${location.origin}${location.pathname}?${params.toString()}`;
+        const urlList = pendingURLSchemas.map(s => s.url).join('\n');
+        const compressed = LZString.compressToEncodedURIComponent(urlList);
+        const shareURL = `${location.origin}${location.pathname}?d=${compressed}`;
         navigator.clipboard.writeText(shareURL).then(() => {
             const btn = document.getElementById('copyLinkBtn');
             const orig = btn.textContent;
@@ -1974,8 +1974,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Auto-load schemas from URL query params (?s=url1&s=url2)
-    const initURLs = new URLSearchParams(location.search).getAll('s');
+    // Auto-load schemas from URL query params.
+    // Supports compressed ?d= links (new) and legacy ?s= links.
+    const qp = new URLSearchParams(location.search);
+    let initURLs = [];
+    const compressed = qp.get('d');
+    if (compressed) {
+        try {
+            const raw = LZString.decompressFromEncodedURIComponent(compressed);
+            if (raw) initURLs = raw.split('\n').filter(Boolean);
+        } catch { /* ignore malformed param */ }
+    } else {
+        initURLs = qp.getAll('s');
+    }
     if (initURLs.length > 0) {
         addURLs(initURLs.join('\n')).then(() => {
             document.getElementById('processBtn').click();
