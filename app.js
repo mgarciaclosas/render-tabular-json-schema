@@ -1528,27 +1528,41 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUrlList() {
         const urlList = document.getElementById('urlList');
         if (pendingURLSchemas.length === 0) { urlList.innerHTML = ''; return; }
-        const n = pendingURLSchemas.length;
         urlList.innerHTML = pendingURLSchemas.map((s, i) =>
-            `<div class="url-item">
-                <div class="url-item-arrows">
-                    <button class="url-item-arrow" data-idx="${i}" data-dir="-1" title="Move up"   ${i === 0     ? 'disabled' : ''}>▲</button>
-                    <button class="url-item-arrow" data-idx="${i}" data-dir="1"  title="Move down" ${i === n - 1 ? 'disabled' : ''}>▼</button>
-                </div>
+            `<div class="url-item" draggable="true" data-idx="${i}">
+                <span class="url-item-drag" title="Drag to reorder">⠿</span>
                 <span class="url-item-name" title="${s.url}">${s.name}</span>
                 <button class="url-item-remove" data-idx="${i}" title="Remove">×</button>
             </div>`
         ).join('');
-        urlList.querySelectorAll('.url-item-arrow').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const idx = +btn.dataset.idx;
-                const newIdx = idx + +btn.dataset.dir;
-                if (newIdx < 0 || newIdx >= pendingURLSchemas.length) return;
-                [pendingURLSchemas[idx], pendingURLSchemas[newIdx]] =
-                    [pendingURLSchemas[newIdx], pendingURLSchemas[idx]];
+
+        let dragIdx = null;
+        urlList.querySelectorAll('.url-item').forEach(item => {
+            item.addEventListener('dragstart', (e) => {
+                dragIdx = +item.dataset.idx;
+                item.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+                urlList.querySelectorAll('.url-item').forEach(el => el.classList.remove('drag-over'));
+            });
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                urlList.querySelectorAll('.url-item').forEach(el => el.classList.remove('drag-over'));
+                item.classList.add('drag-over');
+            });
+            item.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const dropIdx = +item.dataset.idx;
+                if (dragIdx === null || dragIdx === dropIdx) return;
+                const [moved] = pendingURLSchemas.splice(dragIdx, 1);
+                pendingURLSchemas.splice(dropIdx, 0, moved);
                 renderUrlList();
             });
         });
+
         urlList.querySelectorAll('.url-item-remove').forEach(btn => {
             btn.addEventListener('click', () => {
                 pendingURLSchemas.splice(+btn.dataset.idx, 1);
@@ -1558,40 +1572,61 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Add URL button
-    document.getElementById('addUrlBtn').addEventListener('click', async () => {
-        const input   = document.getElementById('urlInput');
-        const raw     = input.value.trim();
-        const errorMessage = document.getElementById('errorMessage');
-        if (!raw) return;
+    // Fetch and register one or more URLs (split by newlines)
+    async function addURLs(rawText) {
+        const urls = rawText.split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+        if (urls.length === 0) return;
 
-        const url = SchemaProcessor.normalizeGitHubURL(raw);
-        const addUrlBtn = document.getElementById('addUrlBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const addUrlBtn   = document.getElementById('addUrlBtn');
         addUrlBtn.disabled = true;
         addUrlBtn.textContent = 'Loading…';
         errorMessage.innerHTML = '';
 
-        try {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
-            const text = await res.text();
-            JSON.parse(text); // validate JSON before accepting
-            const name = url.split('/').pop() || 'schema.json';
-            pendingURLSchemas.push({ text, name, url });
-            input.value = '';
-            renderUrlList();
-            updateActionButtons();
-        } catch (err) {
-            errorMessage.innerHTML = `<div class="error-message">Could not load URL: ${err.message}</div>`;
-        } finally {
-            addUrlBtn.disabled = false;
-            addUrlBtn.textContent = 'Add URL';
+        const errors = [];
+        for (const raw of urls) {
+            const url = SchemaProcessor.normalizeGitHubURL(raw);
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+                const text = await res.text();
+                JSON.parse(text); // validate JSON before accepting
+                const name = url.split('/').pop() || 'schema.json';
+                pendingURLSchemas.push({ text, name, url });
+            } catch (err) {
+                errors.push(`${raw.split('/').pop() || raw}: ${err.message}`);
+            }
         }
+
+        document.getElementById('urlInput').value = '';
+        renderUrlList();
+        updateActionButtons();
+
+        if (errors.length > 0) {
+            errorMessage.innerHTML = `<div class="error-message">Could not load: ${errors.join('<br>')}</div>`;
+        }
+
+        addUrlBtn.disabled = false;
+        addUrlBtn.textContent = 'Add URL';
+    }
+
+    // Add URL button
+    document.getElementById('addUrlBtn').addEventListener('click', () => {
+        const raw = document.getElementById('urlInput').value.trim();
+        if (raw) addURLs(raw);
     });
 
-    // Allow pressing Enter in the URL input to trigger Add URL
+    // Enter key triggers Add URL
     document.getElementById('urlInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') document.getElementById('addUrlBtn').click();
+    });
+
+    // Pasting multiple URLs at once (one per line) — auto-add all
+    document.getElementById('urlInput').addEventListener('paste', (e) => {
+        const pasted = e.clipboardData.getData('text');
+        if (!pasted.includes('\n')) return; // single URL, let normal paste happen
+        e.preventDefault();
+        addURLs(pasted);
     });
 
     document.getElementById('fileInput').addEventListener('change', async (e) => {

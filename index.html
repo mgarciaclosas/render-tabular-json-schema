@@ -97,13 +97,14 @@
             flex: 1; color: #2c3e50;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .url-item-arrows { display: flex; flex-direction: column; gap: 1px; }
-        .url-item-arrow {
-            background: none; border: none; cursor: pointer;
-            color: #adb5bd; font-size: 10px; line-height: 1; padding: 0 2px;
+        .url-item { cursor: default; }
+        .url-item.dragging { opacity: 0.4; }
+        .url-item.drag-over { background: #dce8ff; outline: 2px dashed #4a69bd; }
+        .url-item-drag {
+            color: #adb5bd; font-size: 15px; cursor: grab;
+            user-select: none; padding: 0 2px; flex-shrink: 0;
         }
-        .url-item-arrow:hover:not([disabled]) { color: #4a69bd; }
-        .url-item-arrow[disabled] { opacity: 0.25; cursor: default; }
+        .url-item-drag:active { cursor: grabbing; }
         .url-item-remove {
             background: none; border: none; cursor: pointer;
             color: #718096; font-size: 18px; line-height: 1; padding: 0 2px;
