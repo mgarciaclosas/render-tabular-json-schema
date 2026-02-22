@@ -223,11 +223,20 @@ class SchemaProcessor {
             s => !(s.type === 'array' && s.items)
         );
         if (objectSchemas.length > 1) {
+            // If two schemas share the same title (e.g. wrong title in schema file),
+            // fall back to the cleaned filename so each file gets its own section.
+            const titleCount = new Map();
+            for (const s of objectSchemas) {
+                if (s.title) titleCount.set(s.title, (titleCount.get(s.title) || 0) + 1);
+            }
+            const cleanName = src => src.replace(/\.json$/i, '').replace(/_/g, ' ');
+
             const allProperties = [];
             for (const schema of objectSchemas) {
-                // forceCategory=true: all properties in this schema share one category label
-                // Use title, then _sourceName (filename/URL), then null
-                const cat = schema.title || schema._sourceName || null;
+                const titleIsUnique = schema.title && titleCount.get(schema.title) === 1;
+                const cat = titleIsUnique
+                    ? schema.title
+                    : (schema._sourceName ? cleanName(schema._sourceName) : schema.title || null);
                 allProperties.push(...this.extractProperties(schema, cat, true));
             }
             const titles = objectSchemas.map(s => s.title).filter(Boolean).join(', ');

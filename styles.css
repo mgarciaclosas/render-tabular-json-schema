@@ -67,13 +67,15 @@ h1 {
 
 .file-input-label {
     display: inline-block;
-    padding: 12px 24px;
+    padding: 10px 20px;
     background: #4a69bd;
     color: white;
     border-radius: 6px;
     cursor: pointer;
     transition: background 0.3s;
+    font-size: 14px;
     font-weight: 500;
+    font-family: inherit;
 }
 
 .file-input-label:hover {
