@@ -1070,44 +1070,88 @@ class TableRenderer {
 
         const columns = selectedColumns || this.columnManager.getSelectedColumns();
         const hasCategories = data.properties.some(p => p.category);
+        const colSpan = columns.length + 1; // +1 for checkbox column
+
+        // Collect unique categories for filter dropdown
+        const categories = hasCategories
+            ? [...new Set(data.properties.map(p => p.category).filter(Boolean))]
+            : [];
 
         let html = `<div class="table-container">
             <div class="table-header">
-                <div class="table-title">${data.title}</div>
-                ${data.description ? `<div class="subtitle">${data.description}</div>` : ''}
-            </div>
-            <div class="search-box">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div class="table-title">${data.title}</div>
+                    <div class="selection-bar">
+                        <span class="selection-count" id="selectionCount"></span>
+                        <button class="btn-export-selected" id="btnExportSelected"
+                                onclick="exportSelected()" title="Export checked rows to Excel">
+                            Export Selected to Excel
+                        </button>
+                    </div>
+                </div>
+                ${data.description ? `<div class="subtitle" style="margin-top:4px;">${data.description}</div>` : ''}
+            </div>`;
+
+        // Category filter (only when there are multiple categories)
+        if (categories.length > 1) {
+            html += `<div class="category-filter-wrapper">
+                <span class="category-filter-label">Show category:</span>
+                <select class="category-filter-select" id="categoryFilter" onchange="applyFilters()">
+                    <option value="ALL">All categories</option>
+                    ${categories.map(c => `<option value="${this.escapeHtml(c)}">${this.escapeHtml(c)}</option>`).join('')}
+                </select>
+            </div>`;
+        }
+
+        html += `<div class="search-box">
                 <input type="text" class="search-input" id="searchInput"
-                       placeholder="Search variables..." onkeyup="filterTable()">
+                       placeholder="Search variables..." oninput="applyFilters()">
             </div>
             <div class="table-scroll-wrapper">
                 <table id="dataTable">
                     <thead>
-                        <tr>`;
+                        <tr>
+                            <th class="cb-col">
+                                <input type="checkbox" class="var-checkbox" id="selectAllCb"
+                                       onclick="selectAllRows(this.checked)" title="Select / deselect all">
+                            </th>`;
 
-        // Add table headers for selected columns
         for (const col of columns) {
             const def = this.columnManager.getColumnDefinition(col);
             html += `<th class="col-${col}">${def.display}</th>`;
         }
 
-        html += `</tr>
-                    </thead>
-                    <tbody>`;
+        html += `</tr></thead><tbody>`;
 
         let lastCategory = null;
         for (const prop of data.properties) {
-            // Add category row if changed
+            // Category header row
             if (hasCategories && prop.category && prop.category !== lastCategory) {
-                html += `<tr class="category-row">
-                    <td colspan="${columns.length}">${prop.category}</td>
+                const catKey = this.escapeHtml(prop.category);
+                html += `<tr class="category-row" data-cat="${catKey}">
+                    <td class="cb-col">
+                        <input type="checkbox" class="var-checkbox"
+                               onclick="selectSection('${catKey}', this.checked)"
+                               title="Select all in this section">
+                    </td>
+                    <td colspan="${columns.length}">
+                        <span class="category-toggle" onclick="toggleCategory('${catKey}')">▼</span>
+                        ${prop.category}
+                    </td>
                 </tr>`;
                 lastCategory = prop.category;
             }
 
-            html += `<tr class="data-row">`;
+            const varName = this.escapeHtml(prop.name);
+            const catAttr = prop.category ? ` data-cat="${this.escapeHtml(prop.category)}"` : '';
+            const isChecked = window.selectedVars?.has(prop.name) ? ' checked' : '';
 
-            // Add cells for selected columns
+            html += `<tr class="data-row"${catAttr} data-varname="${varName}">
+                <td class="cb-col">
+                    <input type="checkbox" class="var-checkbox"${isChecked}
+                           onclick="toggleRowSelection('${varName}', this.checked)">
+                </td>`;
+
             for (const col of columns) {
                 const cellValue = this.formatCellValue(col, prop, prop.schema);
                 html += `<td class="cell-${col}">${cellValue}</td>`;
@@ -1493,19 +1537,99 @@ window.toggleAdditional = function(id) {
     element.classList.toggle('show');
 };
 
-window.filterTable = function() {
-    const input = document.getElementById('searchInput');
-    const filter = input.value.toLowerCase();
-    const rows = document.querySelectorAll('#dataTable tbody .data-row');
+// Unified filter: search text + category dropdown + collapse state
+window.applyFilters = function() {
+    const searchText = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    const catFilter  = document.getElementById('categoryFilter')?.value || 'ALL';
 
-    rows.forEach(row => {
-        const text = row.textContent.toLowerCase();
-        if (text.includes(filter)) {
-            row.classList.remove('hidden');
-        } else {
-            row.classList.add('hidden');
+    // Category header rows
+    document.querySelectorAll('#dataTable tbody .category-row').forEach(row => {
+        const cat = row.dataset.cat || '';
+        row.style.display = (catFilter === 'ALL' || cat === catFilter) ? '' : 'none';
+    });
+
+    // Data rows
+    document.querySelectorAll('#dataTable tbody .data-row').forEach(row => {
+        const cat      = row.dataset.cat || '';
+        const catRow   = cat ? document.querySelector(`.category-row[data-cat="${CSS.escape(cat)}"]`) : null;
+        const collapsed = catRow?.classList.contains('collapsed') ?? false;
+        const matchesSearch   = !searchText || row.textContent.toLowerCase().includes(searchText);
+        const matchesCategory = catFilter === 'ALL' || cat === catFilter;
+        // Search overrides collapse so users can still find things in collapsed sections
+        const show = matchesSearch && matchesCategory && (!collapsed || searchText);
+        row.style.display = show ? '' : 'none';
+    });
+};
+
+// Collapse / expand a category section
+window.toggleCategory = function(cat) {
+    const catRow = document.querySelector(`.category-row[data-cat="${CSS.escape(cat)}"]`);
+    if (!catRow) return;
+    catRow.classList.toggle('collapsed');
+    applyFilters();
+};
+
+// ── Variable selector ──────────────────────────────────────────────────────
+
+// Initialise persistent selection store
+if (!window.selectedVars) window.selectedVars = new Set();
+
+window.toggleRowSelection = function(varName, checked) {
+    if (checked) window.selectedVars.add(varName);
+    else         window.selectedVars.delete(varName);
+    updateSelectionUI();
+};
+
+window.selectAllRows = function(checked) {
+    document.querySelectorAll('#dataTable tbody .data-row').forEach(row => {
+        const varName = row.dataset.varname;
+        const cb = row.querySelector('.var-checkbox');
+        if (cb) cb.checked = checked;
+        if (varName) {
+            if (checked) window.selectedVars.add(varName);
+            else         window.selectedVars.delete(varName);
         }
     });
+    updateSelectionUI();
+};
+
+window.selectSection = function(cat, checked) {
+    document.querySelectorAll(`#dataTable tbody .data-row[data-cat="${CSS.escape(cat)}"]`).forEach(row => {
+        const varName = row.dataset.varname;
+        const cb = row.querySelector('.var-checkbox');
+        if (cb) cb.checked = checked;
+        if (varName) {
+            if (checked) window.selectedVars.add(varName);
+            else         window.selectedVars.delete(varName);
+        }
+    });
+    updateSelectionUI();
+};
+
+function updateSelectionUI() {
+    const n = window.selectedVars?.size || 0;
+    const countEl   = document.getElementById('selectionCount');
+    const exportBtn = document.getElementById('btnExportSelected');
+    if (countEl)   countEl.textContent = n > 0 ? `${n} variable${n === 1 ? '' : 's'} selected` : '';
+    if (exportBtn) exportBtn.classList.toggle('visible', n > 0);
+}
+
+window.exportSelected = async function() {
+    if (!window.currentData || !window.selectedVars || window.selectedVars.size === 0) return;
+    const btn = document.getElementById('btnExportSelected');
+    btn.textContent = 'Exporting…';
+    btn.disabled = true;
+    try {
+        const filtered = {
+            title:       window.currentData.title + ' (selection)',
+            description: window.currentData.description,
+            properties:  window.currentData.properties.filter(p => window.selectedVars.has(p.name))
+        };
+        await window.renderer.exportToExcel(filtered);
+    } finally {
+        btn.textContent = 'Export Selected to Excel';
+        btn.disabled = false;
+    }
 };
 
 // Initialize
@@ -1524,9 +1648,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateActionButtons() {
         const hasFiles = document.getElementById('fileInput').files.length > 0;
-        const show = hasFiles || pendingURLSchemas.length > 0;
-        document.getElementById('processBtn').style.display = show ? 'inline-block' : 'none';
-        document.getElementById('clearBtn').style.display  = show ? 'inline-block' : 'none';
+        const hasURLs  = pendingURLSchemas.length > 0;
+        const show = hasFiles || hasURLs;
+        document.getElementById('processBtn').style.display  = show ? 'inline-block' : 'none';
+        document.getElementById('clearBtn').style.display    = show ? 'inline-block' : 'none';
+        document.getElementById('copyLinkBtn').style.display = hasURLs ? 'inline-block' : 'none';
     }
 
     function renderUrlList() {
@@ -1661,6 +1787,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             tableOutput.innerHTML = '<div class="loading">Processing schemas...</div>';
+            window.selectedVars = new Set(); // reset selection on fresh generate
 
             const success = await processor.processFiles(files, pendingURLSchemas);
 
@@ -1735,6 +1862,9 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingURLSchemas = [];
         renderUrlList();
 
+        // Reset variable selection
+        window.selectedVars = new Set();
+
         // Hide buttons
         document.getElementById('processBtn').style.display = 'none';
         document.getElementById('clearBtn').style.display = 'none';
@@ -1752,6 +1882,31 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset column manager to defaults
         columnManager.selectedColumns = [...columnManager.defaultColumnOrder];
     });
+
+    // Copy shareable link button
+    document.getElementById('copyLinkBtn').addEventListener('click', () => {
+        if (pendingURLSchemas.length === 0) return;
+        const params = new URLSearchParams();
+        pendingURLSchemas.forEach(s => params.append('s', s.url));
+        const shareURL = `${location.origin}${location.pathname}?${params.toString()}`;
+        navigator.clipboard.writeText(shareURL).then(() => {
+            const btn = document.getElementById('copyLinkBtn');
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = orig; }, 2000);
+        }).catch(() => {
+            // Fallback: prompt the user to copy manually
+            prompt('Copy this link:', shareURL);
+        });
+    });
+
+    // Auto-load schemas from URL query params (?s=url1&s=url2)
+    const initURLs = new URLSearchParams(location.search).getAll('s');
+    if (initURLs.length > 0) {
+        addURLs(initURLs.join('\n')).then(() => {
+            document.getElementById('processBtn').click();
+        });
+    }
 
     // Close enum dropdowns when clicking outside
     document.addEventListener('click', (e) => {
