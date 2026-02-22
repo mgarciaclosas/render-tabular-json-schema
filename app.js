@@ -122,7 +122,14 @@ class SchemaProcessor {
         }
     }
 
-    extractProperties(schema, category = null) {
+    /**
+     * @param {Object}  schema
+     * @param {string|null} category
+     * @param {boolean} forceCategory  When true, ALL nested allOf/$ref schemas
+     *   inherit the same category instead of using their own title.
+     *   Use this when each uploaded file should appear as exactly one section.
+     */
+    extractProperties(schema, category = null, forceCategory = false) {
         const result = [];
 
         if (schema.properties) {
@@ -138,7 +145,7 @@ class SchemaProcessor {
                 // properties as additional rows grouped under a sub-category.
                 if (propSchema.type === 'array' && propSchema.items?.properties) {
                     const arrayCategory = `${name} — array items`;
-                    result.push(...this.extractProperties(propSchema.items, arrayCategory));
+                    result.push(...this.extractProperties(propSchema.items, arrayCategory, forceCategory));
                 }
             }
         }
@@ -148,11 +155,12 @@ class SchemaProcessor {
                 if (subSchema.$ref) {
                     const resolved = this.resolveRef(subSchema.$ref, schema);
                     if (resolved) {
-                        const subCategory = resolved.title || category;
-                        result.push(...this.extractProperties(resolved, subCategory));
+                        // If forceCategory, keep the parent category; otherwise use sub-schema title
+                        const subCategory = forceCategory ? category : (resolved.title || category);
+                        result.push(...this.extractProperties(resolved, subCategory, forceCategory));
                     }
                 } else {
-                    result.push(...this.extractProperties(subSchema, category));
+                    result.push(...this.extractProperties(subSchema, category, forceCategory));
                 }
             }
         }
@@ -211,7 +219,8 @@ class SchemaProcessor {
         if (objectSchemas.length > 1) {
             const allProperties = [];
             for (const schema of objectSchemas) {
-                allProperties.push(...this.extractProperties(schema, schema.title || null));
+                // forceCategory=true: all properties in this schema share one category label
+                allProperties.push(...this.extractProperties(schema, schema.title || null, true));
             }
             const titles = objectSchemas.map(s => s.title).filter(Boolean).join(', ');
             return {
@@ -1079,20 +1088,11 @@ class TableRenderer {
 
         let html = `<div class="table-container">
             <div class="table-header">
-                <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                    <div class="table-title">${data.title}</div>
-                    <div class="selection-bar">
-                        <span class="selection-count" id="selectionCount"></span>
-                        <button class="btn-export-selected" id="btnExportSelected"
-                                onclick="exportSelected()" title="Export checked rows to Excel">
-                            Export Selected to Excel
-                        </button>
-                    </div>
-                </div>
+                <div class="table-title">${data.title}</div>
                 ${data.description ? `<div class="subtitle" style="margin-top:4px;">${data.description}</div>` : ''}
             </div>`;
 
-        // Category filter (only when there are multiple categories)
+        // Category filter + collapse controls (only when there are multiple categories)
         if (categories.length > 1) {
             html += `<div class="category-filter-wrapper">
                 <span class="category-filter-label">Show category:</span>
@@ -1100,6 +1100,8 @@ class TableRenderer {
                     <option value="ALL">All categories</option>
                     ${categories.map(c => `<option value="${this.escapeHtml(c)}">${this.escapeHtml(c)}</option>`).join('')}
                 </select>
+                <button class="btn-collapse-all" onclick="collapseAllCategories(true)"  title="Collapse all sections">Collapse all</button>
+                <button class="btn-collapse-all" onclick="collapseAllCategories(false)" title="Expand all sections">Expand all</button>
             </div>`;
         }
 
@@ -1608,17 +1610,19 @@ window.selectSection = function(cat, checked) {
 
 function updateSelectionUI() {
     const n = window.selectedVars?.size || 0;
-    const countEl   = document.getElementById('selectionCount');
-    const exportBtn = document.getElementById('btnExportSelected');
-    if (countEl)   countEl.textContent = n > 0 ? `${n} variable${n === 1 ? '' : 's'} selected` : '';
-    if (exportBtn) exportBtn.classList.toggle('visible', n > 0);
+    const statusEl  = document.getElementById('selectionStatus');
+    const exportBtn = document.getElementById('exportSelectedBtn');
+    if (statusEl) {
+        statusEl.style.display = n > 0 ? 'block' : 'none';
+        statusEl.textContent   = n > 0 ? `${n} variable${n === 1 ? '' : 's'} selected` : '';
+    }
+    if (exportBtn) exportBtn.style.display = n > 0 ? 'inline-block' : 'none';
 }
 
 window.exportSelected = async function() {
     if (!window.currentData || !window.selectedVars || window.selectedVars.size === 0) return;
-    const btn = document.getElementById('btnExportSelected');
-    btn.textContent = 'Exporting…';
-    btn.disabled = true;
+    const btn = document.getElementById('exportSelectedBtn');
+    if (btn) { btn.textContent = 'Exporting…'; btn.disabled = true; }
     try {
         const filtered = {
             title:       window.currentData.title + ' (selection)',
@@ -1627,9 +1631,17 @@ window.exportSelected = async function() {
         };
         await window.renderer.exportToExcel(filtered);
     } finally {
-        btn.textContent = 'Export Selected to Excel';
-        btn.disabled = false;
+        if (btn) { btn.textContent = 'Export Selected to Excel'; btn.disabled = false; }
     }
+};
+
+// Collapse / expand all category sections at once
+window.collapseAllCategories = function(collapse) {
+    document.querySelectorAll('#dataTable tbody .category-row').forEach(row => {
+        if (collapse) row.classList.add('collapsed');
+        else          row.classList.remove('collapsed');
+    });
+    applyFilters();
 };
 
 // Initialize
@@ -1717,14 +1729,22 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const raw of urls) {
             const url = SchemaProcessor.normalizeGitHubURL(raw);
             try {
-                const res = await fetch(url);
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 15000);
+                let res;
+                try {
+                    res = await fetch(url, { signal: controller.signal });
+                } finally {
+                    clearTimeout(timer);
+                }
                 if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
                 const text = await res.text();
                 JSON.parse(text); // validate JSON before accepting
                 const name = url.split('/').pop() || 'schema.json';
                 pendingURLSchemas.push({ text, name, url });
             } catch (err) {
-                errors.push(`${raw.split('/').pop() || raw}: ${err.message}`);
+                const label = err.name === 'AbortError' ? 'Timed out (15 s)' : err.message;
+                errors.push(`${raw.split('/').pop() || raw}: ${label}`);
             }
         }
 
@@ -1864,6 +1884,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reset variable selection
         window.selectedVars = new Set();
+        document.getElementById('exportSelectedBtn').style.display = 'none';
+        const ss = document.getElementById('selectionStatus');
+        if (ss) { ss.style.display = 'none'; ss.textContent = ''; }
 
         // Hide buttons
         document.getElementById('processBtn').style.display = 'none';
@@ -1881,6 +1904,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reset column manager to defaults
         columnManager.selectedColumns = [...columnManager.defaultColumnOrder];
+    });
+
+    // Export Selected button (in actions bar)
+    document.getElementById('exportSelectedBtn').addEventListener('click', () => {
+        window.exportSelected();
     });
 
     // Copy shareable link button

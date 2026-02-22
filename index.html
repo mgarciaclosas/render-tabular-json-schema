@@ -66,6 +66,59 @@
         .features li::before { content: "✓"; color: #27ae60; font-weight: 700; }
         @media (max-width: 700px) { .info-grid { grid-template-columns: 1fr; } }
 
+        /* Category filter */
+        .category-filter-wrapper {
+            padding: 0 30px 14px; display: flex; align-items: center; gap: 12px;
+        }
+        .category-filter-label { font-size: 15px; font-weight: 600; color: #2c3e50; white-space: nowrap; }
+        .category-filter-select {
+            padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 6px;
+            font-size: 15px; font-family: inherit; color: #2c3e50;
+            background: white; cursor: pointer;
+        }
+        .category-filter-select:focus { outline: none; border-color: #4a69bd; }
+        .btn-collapse-all {
+            padding: 6px 14px; background: #f0f4ff; color: #4a69bd;
+            border: 1.5px solid #4a69bd; border-radius: 6px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        .btn-collapse-all:hover { background: #dce8ff; }
+
+        /* Variable selector */
+        .selection-bar {
+            display: flex; align-items: center; gap: 14px;
+            margin-top: 8px; font-size: 15px; color: #495057; flex-wrap: wrap;
+        }
+        .selection-count { font-weight: 700; color: #8e44ad; font-size: 15px; }
+        .btn-export-selected {
+            padding: 11px 24px; background: #8e44ad; color: white;
+            border: none; border-radius: 7px; font-size: 16px; font-weight: 700;
+            cursor: pointer; display: none; letter-spacing: 0.01em;
+            box-shadow: 0 3px 10px rgba(142,68,173,0.35);
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .btn-export-selected.visible { display: inline-block; }
+        .btn-export-selected:hover { background: #7d3c98; box-shadow: 0 4px 14px rgba(142,68,173,0.45); }
+        .btn-export-selected:disabled { opacity: 0.6; cursor: not-allowed; }
+        .cb-col { width: 36px !important; min-width: 36px !important; text-align: center !important; padding: 8px 4px !important; }
+        .var-checkbox { cursor: pointer; width: 15px; height: 15px; accent-color: #4a69bd; }
+
+        /* Category collapse toggle */
+        .category-toggle {
+            margin-right: 8px; cursor: pointer; user-select: none;
+            display: inline-block; width: 14px; text-align: center;
+            font-size: 11px; transition: transform 0.2s; color: #1565c0;
+        }
+        .category-row.collapsed .category-toggle { transform: rotate(-90deg); }
+
+        /* Copy link button */
+        .btn-copy-link {
+            padding: 10px 20px; background: #8e44ad; color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-weight: 500; transition: all 0.3s; font-size: 14px;
+        }
+        .btn-copy-link:hover { background: #7d3c98; }
+
         /* URL input */
         .url-input-wrapper {
             display: flex; gap: 8px; margin-top: 14px; align-items: center;
@@ -125,11 +178,12 @@
             <div class="info-card">
                 <h2>How to use</h2>
                 <ol class="steps">
-                    <li>Click <strong>Choose JSON Schema File(s)</strong> and select one or more <code>.json</code> schema files</li>
+                    <li><strong>Upload files:</strong> click <strong>Choose JSON Schema File(s)</strong> — <em>or</em> paste a GitHub or raw JSON URL and click <strong>Add URL</strong>. Paste multiple URLs at once (one per line) to add them all. Drag ⠿ to reorder</li>
                     <li>Click <strong>Generate Table</strong> to render the data dictionary</li>
+                    <li>Use the <strong>category dropdown</strong> to focus on one schema and <strong>Collapse / Expand all</strong> to fold sections. Use the <strong>search box</strong> to find variables</li>
+                    <li>Tick checkboxes to select variables, then click <strong>Export Selected to Excel</strong> — or <strong>Export All to Excel</strong> for the full dictionary</li>
                     <li>Use the <strong>column selector</strong> to show, hide, or reorder columns</li>
-                    <li>Use the <strong>search box</strong> to filter variables by name or description</li>
-                    <li>Click <strong>Export to Excel</strong> to download the full dictionary as <code>.xlsx</code></li>
+                    <li>If schemas were loaded from URLs, click <strong>Copy shareable link</strong> to share a link that opens the same dictionary automatically</li>
                 </ol>
             </div>
 
@@ -171,8 +225,11 @@
             <div class="actions">
                 <button id="processBtn" class="btn btn-primary" style="display:none;">Generate Table</button>
                 <button id="clearBtn" class="btn btn-danger" style="display:none;">Clear</button>
-                <button id="exportBtn" class="btn btn-secondary" style="display:none;">Export to Excel</button>
+                <button id="exportBtn" class="btn btn-secondary" style="display:none;">Export All to Excel</button>
+                <button id="exportSelectedBtn" class="btn-export-selected" style="display:none;">Export Selected to Excel</button>
+                <button id="copyLinkBtn" class="btn-copy-link" style="display:none;" title="Only available when schemas are loaded from URLs">Copy shareable link</button>
             </div>
+            <div id="selectionStatus" style="font-size:13px;color:#8e44ad;font-weight:600;margin-top:8px;display:none;"></div>
             <div id="errorMessage"></div>
         </div>
 
