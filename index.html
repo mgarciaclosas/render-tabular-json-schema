@@ -7,7 +7,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="styles.css?v=10">
     <style>
         .info-grid {
             display: grid;
@@ -94,14 +94,13 @@
         }
         .selection-count { font-weight: 700; color: #8e44ad; font-size: 15px; }
         .btn-export-selected {
-            padding: 11px 24px; background: #8e44ad; color: white;
-            border: none; border-radius: 7px; font-size: 16px; font-weight: 700;
-            cursor: pointer; display: none; letter-spacing: 0.01em;
-            box-shadow: 0 3px 10px rgba(142,68,173,0.35);
-            transition: background 0.2s, box-shadow 0.2s;
+            padding: 10px 20px; background: #6c757d; color: white;
+            border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
+            font-family: inherit; cursor: pointer; display: none;
+            transition: background 0.2s;
         }
         .btn-export-selected.visible { display: inline-block; }
-        .btn-export-selected:hover { background: #7d3c98; box-shadow: 0 4px 14px rgba(142,68,173,0.45); }
+        .btn-export-selected:hover { background: #5a6268; }
         .btn-export-selected:disabled { opacity: 0.6; cursor: not-allowed; }
         .cb-col { width: 36px !important; min-width: 36px !important; text-align: center !important; padding: 8px 4px !important; }
         .var-checkbox { cursor: pointer; width: 15px; height: 15px; accent-color: #4a69bd; }
@@ -116,11 +115,11 @@
 
         /* Copy link button */
         .btn-copy-link {
-            padding: 10px 20px; background: #16a085; color: white;
+            padding: 10px 20px; background: #4a69bd; color: white;
             border: none; border-radius: 6px; cursor: pointer;
-            font-weight: 500; transition: all 0.3s; font-size: 14px;
+            font-family: inherit; font-weight: 500; transition: all 0.3s; font-size: 14px;
         }
-        .btn-copy-link:hover { background: #138d75; }
+        .btn-copy-link:hover { background: #3c5aa6; }
 
         /* URL input */
         .url-input-wrapper {
@@ -245,6 +244,6 @@
     <!-- FileSaver.js for browser file download -->
     <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=10"></script>
 </body>
 </html>

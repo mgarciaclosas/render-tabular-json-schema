@@ -97,7 +97,9 @@ h1 {
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    font-size: 14px;
     font-weight: 500;
+    font-family: inherit;
     transition: all 0.3s;
 }
 
@@ -448,6 +450,19 @@ tbody td {
     vertical-align: top;
     word-wrap: break-word;
     overflow-wrap: break-word;
+}
+
+.array-subheader-row {
+    background: #f0f4ff;
+}
+
+.array-subheader-cell {
+    padding: 5px 16px 5px 28px !important;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4a69bd;
+    font-style: italic;
+    border-bottom: 1px solid #dce8ff;
 }
 
 .category-row {

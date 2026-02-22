@@ -57,6 +57,7 @@ class SchemaProcessor {
         let objectSchemaCandidate = null;
 
         const registerSchema = (schema, name) => {
+            schema._sourceName = name; // fallback label if schema has no title
             if (schema.$id) {
                 this.schemas.set(schema.$id, schema);
             } else {
@@ -147,7 +148,9 @@ class SchemaProcessor {
                 // so array items don't create a separate section in the filter dropdown.
                 if (propSchema.type === 'array' && propSchema.items?.properties) {
                     const arrayCategory = forceCategory ? category : `${name} — array items`;
-                    result.push(...this.extractProperties(propSchema.items, arrayCategory, forceCategory));
+                    const subItems = this.extractProperties(propSchema.items, arrayCategory, forceCategory);
+                    subItems.forEach(item => { if (!item.arrayParent) item.arrayParent = name; });
+                    result.push(...subItems);
                 }
             }
         }
@@ -215,14 +218,17 @@ class SchemaProcessor {
         // Case 2: multiple type:object schemas uploaded directly — combine all
         // into a single table, one category per schema (no wrapper files needed).
         // Use schemaList (not schemas.values()) to preserve the exact insertion order.
+        // Include any schema that isn't a dataset-level array wrapper
         const objectSchemas = this.schemaList.filter(
-            s => s.type === 'object' || s.properties
+            s => !(s.type === 'array' && s.items)
         );
         if (objectSchemas.length > 1) {
             const allProperties = [];
             for (const schema of objectSchemas) {
                 // forceCategory=true: all properties in this schema share one category label
-                allProperties.push(...this.extractProperties(schema, schema.title || null, true));
+                // Use title, then _sourceName (filename/URL), then null
+                const cat = schema.title || schema._sourceName || null;
+                allProperties.push(...this.extractProperties(schema, cat, true));
             }
             const titles = objectSchemas.map(s => s.title).filter(Boolean).join(', ');
             return {
@@ -1129,6 +1135,7 @@ class TableRenderer {
         html += `</tr></thead><tbody>`;
 
         let lastCategory = null;
+        let lastArrayParent = null;
         for (const prop of data.properties) {
             // Category header row
             if (hasCategories && prop.category && prop.category !== lastCategory) {
@@ -1145,6 +1152,20 @@ class TableRenderer {
                     </td>
                 </tr>`;
                 lastCategory = prop.category;
+                lastArrayParent = null; // reset sub-header when category changes
+            }
+
+            // Array items sub-header — visual grouping within the same category section
+            const curArrayParent = prop.arrayParent || null;
+            if (curArrayParent !== lastArrayParent) {
+                lastArrayParent = curArrayParent;
+                if (curArrayParent) {
+                    const catAttrStr = prop.category ? ` data-cat="${this.escapeHtml(prop.category)}"` : '';
+                    html += `<tr class="array-subheader-row"${catAttrStr}>
+                        <td class="cb-col"></td>
+                        <td colspan="${columns.length}" class="array-subheader-cell">&#x21B3; ${this.escapeHtml(curArrayParent)} — array items</td>
+                    </tr>`;
+                }
             }
 
             const varName = this.escapeHtml(prop.name);
@@ -1551,6 +1572,15 @@ window.applyFilters = function() {
     document.querySelectorAll('#dataTable tbody .category-row').forEach(row => {
         const cat = row.dataset.cat || '';
         row.style.display = (catFilter === 'ALL' || cat === catFilter) ? '' : 'none';
+    });
+
+    // Array sub-header rows: collapse/category filter, no search filter
+    document.querySelectorAll('#dataTable tbody .array-subheader-row').forEach(row => {
+        const cat = row.dataset.cat || '';
+        const catRow = cat ? document.querySelector(`.category-row[data-cat="${CSS.escape(cat)}"]`) : null;
+        const collapsed = catRow?.classList.contains('collapsed') ?? false;
+        const matchesCategory = catFilter === 'ALL' || cat === catFilter;
+        row.style.display = (matchesCategory && !collapsed) ? '' : 'none';
     });
 
     // Data rows
