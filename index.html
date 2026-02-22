@@ -65,6 +65,43 @@
         .features li:last-child { border-bottom: none; }
         .features li::before { content: "✓"; color: #27ae60; font-weight: 700; }
         @media (max-width: 700px) { .info-grid { grid-template-columns: 1fr; } }
+
+        /* URL input */
+        .url-input-wrapper {
+            display: flex; gap: 8px; margin-top: 14px; align-items: center;
+        }
+        .url-input {
+            flex: 1; padding: 8px 12px;
+            border: 1px solid #ced4da; border-radius: 6px;
+            font-size: 14px; font-family: inherit; color: #2c3e50;
+        }
+        .url-input:focus {
+            outline: none; border-color: #4a69bd;
+            box-shadow: 0 0 0 2px rgba(74,105,189,0.15);
+        }
+        .url-input::placeholder { color: #adb5bd; }
+        .btn-outline {
+            background: white; border: 1.5px solid #4a69bd; color: #4a69bd;
+            padding: 8px 16px; border-radius: 6px;
+            font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+        }
+        .btn-outline:hover { background: #eaf0ff; }
+        .btn-outline:disabled { opacity: 0.55; cursor: not-allowed; }
+        #urlList { margin-top: 6px; }
+        .url-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 5px 10px; background: #f0f4ff;
+            border-radius: 5px; margin-top: 5px; font-size: 13px;
+        }
+        .url-item-name {
+            flex: 1; color: #2c3e50;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .url-item-remove {
+            background: none; border: none; cursor: pointer;
+            color: #718096; font-size: 18px; line-height: 1; padding: 0 2px;
+        }
+        .url-item-remove:hover { color: #e53e3e; }
     </style>
 </head>
 <body>
@@ -142,6 +179,12 @@
                 </label>
                 <span class="file-info" id="fileInfo">No files selected</span>
             </div>
+            <div class="url-input-wrapper">
+                <input type="text" id="urlInput" class="url-input"
+                    placeholder="Or paste a GitHub / raw JSON URL and click Add URL">
+                <button id="addUrlBtn" class="btn-outline">Add URL</button>
+            </div>
+            <div id="urlList"></div>
             <div class="actions">
                 <button id="processBtn" class="btn btn-primary" style="display:none;">Generate Table</button>
                 <button id="clearBtn" class="btn btn-danger" style="display:none;">Clear</button>

@@ -21,28 +21,45 @@ class SchemaProcessor {
     }
 
     /**
-     * Process multiple JSON Schema files and identify the main schema
-     * @param {FileList} files - Array of JSON Schema files
+     * Normalise a GitHub blob URL to a raw.githubusercontent.com URL.
+     * Non-GitHub URLs are returned unchanged.
+     * @param {string} url
+     * @returns {string}
+     */
+    static normalizeGitHubURL(url) {
+        try {
+            const u = new URL(url);
+            if (u.hostname === 'github.com') {
+                // /user/repo/blob/branch/path/to/file.json
+                const parts = u.pathname.split('/').filter(Boolean);
+                if (parts.length >= 4 && parts[2] === 'blob') {
+                    const [user, repo, , branch, ...rest] = parts;
+                    return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${rest.join('/')}`;
+                }
+            }
+        } catch { /* leave unchanged */ }
+        return url;
+    }
+
+    /**
+     * Process multiple JSON Schema files and identify the main schema.
+     * @param {File[]} files - File objects from the file picker
+     * @param {{ text: string, name: string }[]} extraSchemas - Pre-fetched schemas (e.g. from URLs)
      * @returns {Promise<boolean>} True if main schema was identified
      */
-    async processFiles(files) {
+    async processFiles(files, extraSchemas = []) {
         this.schemas.clear();
         this.mainSchema = null;
         this.keywordUsage.clear();
 
-        // Load all schemas
         let objectSchemaCandidate = null;
-        for (const file of files) {
-            const text = await file.text();
-            const schema = JSON.parse(text);
 
+        const registerSchema = (schema, name) => {
             if (schema.$id) {
                 this.schemas.set(schema.$id, schema);
             } else {
-                // Schema without $id - treat as potential main schema
-                this.schemas.set(file.name, schema);
+                this.schemas.set(name, schema);
             }
-
             // Prefer a type:array dataset-level schema as the main schema.
             // Fall back to the first type:object schema found.
             if (schema.type === 'array' && schema.items) {
@@ -50,6 +67,15 @@ class SchemaProcessor {
             } else if (!objectSchemaCandidate && (schema.type === 'object' || schema.properties)) {
                 objectSchemaCandidate = schema;
             }
+        };
+
+        for (const file of files) {
+            const text = await file.text();
+            registerSchema(JSON.parse(text), file.name);
+        }
+
+        for (const { text, name } of extraSchemas) {
+            registerSchema(JSON.parse(text), name);
         }
 
         // If no type:array schema found, use the best type:object candidate
@@ -1488,17 +1514,79 @@ window.renderer = renderer;
 window.currentData = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+
+    // Tracks schemas loaded from URLs: { text, name, url }[]
+    let pendingURLSchemas = [];
+
+    function updateActionButtons() {
+        const hasFiles = document.getElementById('fileInput').files.length > 0;
+        const show = hasFiles || pendingURLSchemas.length > 0;
+        document.getElementById('processBtn').style.display = show ? 'inline-block' : 'none';
+        document.getElementById('clearBtn').style.display  = show ? 'inline-block' : 'none';
+    }
+
+    function renderUrlList() {
+        const urlList = document.getElementById('urlList');
+        if (pendingURLSchemas.length === 0) { urlList.innerHTML = ''; return; }
+        urlList.innerHTML = pendingURLSchemas.map((s, i) =>
+            `<div class="url-item">
+                <span class="url-item-name" title="${s.url}">${s.name}</span>
+                <button class="url-item-remove" data-idx="${i}" title="Remove">×</button>
+            </div>`
+        ).join('');
+        urlList.querySelectorAll('.url-item-remove').forEach(btn => {
+            btn.addEventListener('click', () => {
+                pendingURLSchemas.splice(+btn.dataset.idx, 1);
+                renderUrlList();
+                updateActionButtons();
+            });
+        });
+    }
+
+    // Add URL button
+    document.getElementById('addUrlBtn').addEventListener('click', async () => {
+        const input   = document.getElementById('urlInput');
+        const raw     = input.value.trim();
+        const errorMessage = document.getElementById('errorMessage');
+        if (!raw) return;
+
+        const url = SchemaProcessor.normalizeGitHubURL(raw);
+        const addUrlBtn = document.getElementById('addUrlBtn');
+        addUrlBtn.disabled = true;
+        addUrlBtn.textContent = 'Loading…';
+        errorMessage.innerHTML = '';
+
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+            const text = await res.text();
+            JSON.parse(text); // validate JSON before accepting
+            const name = url.split('/').pop() || 'schema.json';
+            pendingURLSchemas.push({ text, name, url });
+            input.value = '';
+            renderUrlList();
+            updateActionButtons();
+        } catch (err) {
+            errorMessage.innerHTML = `<div class="error-message">Could not load URL: ${err.message}</div>`;
+        } finally {
+            addUrlBtn.disabled = false;
+            addUrlBtn.textContent = 'Add URL';
+        }
+    });
+
+    // Allow pressing Enter in the URL input to trigger Add URL
+    document.getElementById('urlInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('addUrlBtn').click();
+    });
+
     document.getElementById('fileInput').addEventListener('change', async (e) => {
         const files = Array.from(e.target.files);
         const fileInfo = document.getElementById('fileInfo');
-        const processBtn = document.getElementById('processBtn');
         const errorMessage = document.getElementById('errorMessage');
 
-        const clearBtn = document.getElementById('clearBtn');
         if (files.length === 0) {
             fileInfo.textContent = 'No files selected';
-            processBtn.style.display = 'none';
-            clearBtn.style.display = 'none';
+            updateActionButtons();
             return;
         }
 
@@ -1506,9 +1594,8 @@ document.addEventListener('DOMContentLoaded', () => {
             files[0].name :
             `${files.length} files selected`;
 
-        processBtn.style.display = 'inline-block';
-        clearBtn.style.display = 'inline-block';
         errorMessage.innerHTML = '';
+        updateActionButtons();
     });
 
     document.getElementById('processBtn').addEventListener('click', async () => {
@@ -1521,7 +1608,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             tableOutput.innerHTML = '<div class="loading">Processing schemas...</div>';
 
-            const success = await processor.processFiles(files);
+            const success = await processor.processFiles(files, pendingURLSchemas);
 
             if (!success) {
                 throw new Error('Could not identify main schema. Please ensure one schema has type: "array" with items.');
@@ -1588,6 +1675,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset file input
         document.getElementById('fileInput').value = '';
         document.getElementById('fileInfo').textContent = 'No files selected';
+
+        // Reset URL input
+        document.getElementById('urlInput').value = '';
+        pendingURLSchemas = [];
+        renderUrlList();
 
         // Hide buttons
         document.getElementById('processBtn').style.display = 'none';
